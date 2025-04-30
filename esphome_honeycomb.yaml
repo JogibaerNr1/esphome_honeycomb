@@ -1,0 +1,1065 @@
+substitutions:
+  gpio_spi_clk_pin: GPIO13 #yellow
+  gpio_spi_mosi_pin: GPIO14 #DIN and blue
+  gpio_cs_pin: GPIO15 #orange
+  gpio_dc_pin: GPIO27 #green
+  gpio_reset_pin: GPIO26 #white
+  gpio_busy_pin: GPIO25 #purple
+  #ePaper HAT PWR pin connected to 3.3V of ESP32 as well
+  gpio_sda_pin: GPIO22 #yellow
+  gpio_scl_pin: GPIO33 #orange
+  #Deep sleep configuration
+  run_time: 100s
+  sleep_time: 600s
+
+globals:
+  - id: BME_updated
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: ecowitt_updated
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: forecast_updated
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+esphome:
+  name: eink
+  friendly_name: eInk
+
+  on_boot: 
+    priority: 200
+    then:
+      - logger.log: "Booting, waiting for Home Assistant data..."
+      # Wait until data of three different sensor types is available
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(BME_updated) && id(ecowitt_updated) && id(forecast_updated);
+      - logger.log: "All sensors updated, refreshing display..."
+      - script.execute: update_screen
+      - logger.log: "Display updated!"
+      - delay: 5s
+
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+#Deep Sleep
+deep_sleep:
+  run_duration: ${run_time} 
+  sleep_duration: ${sleep_time}
+
+#Script to force display update after boot
+script:
+  - id: reset_update_flags
+    then:
+      - lambda: |-
+          id(BME_updated) = false;
+          id(ecowitt_updated) = false;
+          id(forecast_updated) = false;
+  - id: update_screen
+    then:
+      - component.update: epaper_display
+      - script.execute: reset_update_flags
+
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: ""
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  ssid: 
+  password: 
+
+# Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Eink Fallback Hotspot"
+    password: ""
+
+
+#######################################################
+
+captive_portal:
+
+spi:
+  clk_pin: $gpio_spi_clk_pin
+  mosi_pin: $gpio_spi_mosi_pin
+
+i2c:
+  - id: "bme680_1"
+    sda: $gpio_sda_pin
+    scl: $gpio_scl_pin
+    scan: true
+
+font:
+  - file: 'fonts/Roboto-Medium.ttf'
+    id: font_mini
+    size: 14
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Medium.ttf'
+    id: font_small
+    size: 17
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Bold.ttf'
+    id: font_small_fat
+    size: 17
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Medium.ttf'
+    id: font_medium_small
+    size: 18
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Medium.ttf'
+    id: font_medium_PM
+    size: 20
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Medium.ttf'
+    id: font_medium
+    size: 25
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/Roboto-Bold.ttf'
+    id: font_bold
+    size: 26
+    glyphs:
+      ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
+       '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+       'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+       'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+       'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+       'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'Ä', 'ö', 'Ö', 'ü', 'Ü', 'ß', '/','º','µ','³','|', '?']
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_weather_small
+    size: 24
+    glyphs:
+      - "\U000F1A35" # mdi:cloud-percent 
+      - "\U000F0597" # mdi:weather-rainy
+      - "\U000F059D" # mdi-weather-windy
+      - "\U000F12F1" # mdi:drag-vertical-variant
+      - "\U000F050F" # mdi:thermometer
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_small
+    size: 35
+    glyphs:
+      - "\U000F1A74" # mdi:solar-power-variant-outline
+      - "\U000F1904" # mdi:home-lightning-bolt-outline
+      - "\U000F192C" # mdi:transmission-tower-export
+      - "\U000F12A3" # mdi:battery-high
+      - "\U000F12A6" # mdi:battery-charging-high
+      - "\U000F12A2" # mdi:battery-medium
+      - "\U000F12A5" # mdi:battery-charging-medium
+      - "\U000F12A1" # mdi:battery-low
+      - "\U000F12A4" # mdi:battery-charging-low
+      - "\U000F10CD" # mdi:battery-alert-variant-outline
+      - "\U000F089F" # mdi:battery-charging-outline
+      - "\U000F0091" # mdi:battery-unknown
+      - "\U000F14DF" # mdi:rocket-launch-outline
+      - "\U000F0CCB" # mdi:shield-home-outline
+      # Sun
+      - "\U000F059C" # mdi:weather-sunset-up
+      - "\U000F059B" # mdi:weather-sunset-down
+      - "\U000F17FE" # mdi:sun-wireless
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_medium
+    size: 36
+    glyphs:
+      # Other used Icons
+      - "\U000F0D43" # mdi:air-filter
+      - "\U000F050F" # mdi:thermometer
+      - "\U000F0F55" # mdi:home-thermometer-outline
+      - "\U000F058E" # mdi:water-percent
+      - "\U000F0597" # mdi:weather-rainy
+      - "\U000F1A85" # mdi:water-thermometer
+      - "\U000F059D" # mdi:weather-windy
+      - "\U000F1B5A" # mdi:weather-dust
+      - "\U000F029A" # mdi:gauge
+      - "\U000F07E4" # mdi:molecule-co2
+      - "\U000F0BAC" # mdi:molecule
+      - "\U000F00B5" # mdi:blur
+      - "\U000F01F5" # mdi:emoticon-happy-outline
+      - "\U000F01F6" # mdi:emoticon-neutral-outline
+      - "\U000F0C76" # mdi:emoticon-sad
+      - "\U000F0C6E" # mdi:emoticon-dead
+
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_big
+    size: 50
+    glyphs:
+        # Weather
+      - "\U000F0590" # mdi-weather-cloudy
+      - "\U000F0594" # mdi-weather-night
+      - "\U000F0591" # mdi-weather-fog
+      - "\U000F0592" # mdi-weather-hail
+      - "\U000F0593" # mdi-weather-lightning
+      - "\U000F067E" # mdi-weather-lightning-rainy
+      - "\U000F0595" # mdi-weather-partly-cloudy
+      - "\U000F0596" # mdi-weather-pouring
+      - "\U000F0597" # mdi:weather-rainy
+      - "\U000F0598" # mdi-weather-snowy
+      - "\U000F067F" # mdi-weather-snowy-rainy
+      - "\U000F0599" # mdi-weather-sunny
+      - "\U000F059D" # mdi-weather-windy
+      - "\U000F059E" # mdi-weather-windy-variant
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_bigger
+    size: 60
+    glyphs:
+      # Moon
+      - "\U000F0F64" # mdi-moon-new
+      - "\U000F0F68" # mdi-moon-waxing-gibbous
+      - "\U000F0F61" # mdi-moon-first-quarter
+      - "\U000F0F67" # mdi-moon-waxing-crescent     
+      - "\U000F0F62" # mdi-moon-full
+      - "\U000F0F66" # mdi-moon-waning-gibbous
+      - "\U000F0F63" # mdi-moon-last-quarter
+      - "\U000F0F65" # mdi-moon-waning-crescent
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id:  mdi_biggest
+    size: 80
+    glyphs:
+      # Weather
+      - "\U000F0590" # mdi-weather-cloudy
+      - "\U000F0594" # mdi-weather-night
+      - "\U000F0591" # mdi-weather-fog
+      - "\U000F0592" # mdi-weather-hail
+      - "\U000F0593" # mdi-weather-lightning
+      - "\U000F067E" # mdi-weather-lightning-rainy
+      - "\U000F0595" # mdi-weather-partly-cloudy
+      - "\U000F0596" # mdi-weather-pouring
+      - "\U000F0597" # mdi:weather-rainy
+      - "\U000F0598" # mdi-weather-snowy
+      - "\U000F067F" # mdi-weather-snowy-rainy
+      - "\U000F0599" # mdi-weather-sunny
+      - "\U000F059D" # mdi-weather-windy
+      - "\U000F059E" # mdi-weather-windy-variant
+
+time:
+  - platform: sntp
+    timezone: Europe/Berlin
+    id: sntp_time
+
+        
+#Sensor inside############################################
+bme680_bsec:
+  - id: bme680
+    i2c_id: "bme680_1"
+    address: 0x77
+
+sensor:
+  - platform: bme680_bsec
+    bme680_bsec_id: bme680
+    temperature:
+      name: "Temperatur"
+      sample_rate: lp
+      accuracy_decimals: 1
+      id: temp_indoor
+    pressure:
+      name: "Luftdruck"
+      sample_rate: lp
+      accuracy_decimals: 5
+      id: pressure
+    humidity:
+      name: "Luftfeuchtigkeit"
+      sample_rate: lp
+      id: humidity_indoor
+      accuracy_decimals: 1
+    iaq:
+      name: "IAQ"
+      id: iaq_indoor
+      accuracy_decimals: 1
+    co2_equivalent:
+      name: "CO2 Equivalent"
+      id: CO2_indoor
+      accuracy_decimals: 1
+      on_value:
+        then:
+          - lambda: 'id(BME_updated) = true;'
+    gas_resistance:
+      name: "Gas Resistance"
+      id: gas
+      accuracy_decimals: 5
+    breath_voc_equivalent:
+      name: "Intake Breath VOC Equivalent"
+      id: VOC_indoor
+      accuracy_decimals: 1
+  - platform: homeassistant
+    name: "Outdoor temperature"
+    id: temp_outdoor
+    entity_id: sensor.gw2000a_outdoor_temperature
+  - platform: homeassistant
+    name: "Outdoor pressure"
+    id: pressure_outdoor
+    entity_id: sensor.gw2000a_absolute_pressure
+  - platform: homeassistant
+    name: "Humidity"
+    id: humidity_outdoor
+    entity_id: sensor.gw2000a_humidity
+  - platform: homeassistant
+    name: "Dew point"
+    id: dew_point
+    entity_id: sensor.gw2000a_dewpoint
+  - platform: homeassistant
+    name: "Rain rate"
+    id: rain_rate
+    entity_id: sensor.gw2000a_rain_rate
+  - platform: homeassistant
+    name: "Wind gusts"
+    id: wind_gusts
+    entity_id: sensor.gw2000a_wind_gust
+  - platform: homeassistant
+    name: "Wind speed"
+    id: wind_speed
+    entity_id: sensor.gw2000a_wind_speed
+  - platform: homeassistant
+    name: "UV index"
+    id: UV_index
+    entity_id: sensor.gw2000a_uv_index
+  - platform: homeassistant
+    name: "PM 10"
+    id: PM_10
+    entity_id: sensor.o_1pst_pm10
+  - platform: homeassistant
+    name: "PM 2.5"
+    id: PM_25
+    entity_id: sensor.o_1pst_pm2_5
+    on_value:
+       then:
+         - lambda: 'id(ecowitt_updated) = true;'
+  - platform: homeassistant
+    name: "PM 1"
+    id: PM_01
+    entity_id: sensor.o_1pst_pm1
+  - platform: homeassistant
+    name: "PM 0.3"
+    id: PM_03
+    entity_id: sensor.o_1pst_pm03
+  - platform: homeassistant
+    name: "CO2"
+    id: CO2_outdoor
+    entity_id: sensor.o_1pst_kohlendioxid
+  - platform: homeassistant
+    name: "NOx"
+    id: NOx_outdoor
+    entity_id: sensor.o_1pst_nox_index
+  - platform: homeassistant
+    name: "Solarpower Input"
+    id: solarpower_input
+    entity_id: sensor.victron_solarcharger_tracker_0_pv_power_229
+  - platform: homeassistant
+    name: "Grid power input"
+    id: grid_power_input
+    entity_id: sensor.victron_system_system_power #gilt nur für Phase L1, muss noch addiert werden mit den anderen L2 und L3 oder wie auch immer
+  - platform: homeassistant
+    name: "Battery Power"
+    id: battery_power
+    entity_id: sensor.victron_system_battery_power
+  - platform: homeassistant
+    name: "Battery SOC"
+    id: battery_soc
+    entity_id: sensor.victron_battery_soc
+  - platform: homeassistant
+    name: "Inverter_output_apartment"
+    id: inverter_output_apartment
+    entity_id: sensor.victron_vebus_activein_l1_power_228
+  - platform: homeassistant
+    name: "Total grid power consumption"
+    id: total_grid_withdraw
+    entity_id: sensor.victron_grid_energy_forward_total_30 #aktueller Gesamtverbrauch
+  - platform: homeassistant
+    name: "Battery cell temperature"
+    id: battery_temp
+    entity_id: sensor.victron_battery_temperature
+  - platform: homeassistant
+    name: "Forecast 0 Temp min"
+    id: forecast_0_tempmin
+    entity_id: sensor.weather_today
+    attribute: templow
+    on_value:
+      then:
+        - lambda: 'id(forecast_updated) = true;'
+  - platform: homeassistant
+    name: "Forecast 0 Temp max"
+    id: forecast_0_tempmax
+    entity_id: sensor.weather_today
+    attribute: temperature
+  - platform: homeassistant
+    name: "Forecast 0 wind speed"
+    id: forecast_0_wind_speed
+    entity_id: sensor.weather_today
+    attribute: wind_speed
+  - platform: homeassistant
+    name: "Forecast 0 Clouds"
+    id: forecast_0_cloud_coverage
+    entity_id: sensor.weather_today
+    attribute: cloud_coverage
+  - platform: homeassistant
+    name: "Forecast 0 precipitation"
+    id: forecast_0_precipitation
+    entity_id: sensor.weather_today
+    attribute: precipitation
+  - platform: homeassistant
+    name: "Forecast 1 Temp min"
+    id: forecast_1_tempmin
+    entity_id: sensor.weather_tomorrow
+    attribute: templow
+  - platform: homeassistant
+    name: "Forecast 1 Temp max"
+    id: forecast_1_tempmax
+    entity_id: sensor.weather_tomorrow
+    attribute: temperature
+  - platform: homeassistant
+    name: "Forecast 1 Clouds"
+    id: forecast_1_cloud_coverage
+    entity_id: sensor.weather_tomorrow
+    attribute: cloud_coverage
+  - platform: homeassistant
+    name: "Forecast 1 precipitation"
+    id: forecast_1_precipitation
+    entity_id: sensor.weather_tomorrow
+    attribute: precipitation
+  - platform: homeassistant
+    name: "Forecast 2 Temp min"
+    id: forecast_2_tempmin
+    entity_id: sensor.weather_in_2_days
+    attribute: templow
+  - platform: homeassistant
+    name: "Forecast 2 Temp max"
+    id: forecast_2_tempmax
+    entity_id: sensor.weather_in_2_days
+    attribute: temperature
+  - platform: homeassistant
+    name: "Forecast 2 Clouds"
+    id: forecast_2_cloud_coverage
+    entity_id: sensor.weather_in_2_days
+    attribute: cloud_coverage
+  - platform: homeassistant
+    name: "Forecast 2 precipitation"
+    id: forecast_2_precipitation
+    entity_id: sensor.weather_in_2_days
+    attribute: precipitation
+  - platform: homeassistant
+    name: "Forecast 3 Temp min"
+    id: forecast_3_tempmin
+    entity_id: sensor.weather_in_3_days
+    attribute: templow
+  - platform: homeassistant
+    name: "Forecast 3 Temp max"
+    id: forecast_3_tempmax
+    entity_id: sensor.weather_in_3_days
+    attribute: temperature
+  - platform: homeassistant
+    name: "Forecast 3 Clouds"
+    id: forecast_3_cloud_coverage
+    entity_id: sensor.weather_in_3_days
+    attribute: cloud_coverage
+  - platform: homeassistant
+    name: "Forecast 3 precipitation"
+    id: forecast_3_precipitation
+    entity_id: sensor.weather_in_3_days
+    attribute: precipitation
+  - platform: homeassistant
+    name: "Forecast 4 Temp min"
+    id: forecast_4_tempmin
+    entity_id: sensor.weather_in_4_days
+    attribute: templow
+  - platform: homeassistant
+    name: "Forecast 4 Temp max"
+    id: forecast_4_tempmax
+    entity_id: sensor.weather_in_4_days
+    attribute: temperature
+  - platform: homeassistant
+    name: "Forecast 4 Clouds"
+    id: forecast_4_cloud_coverage
+    entity_id: sensor.weather_in_4_days
+    attribute: cloud_coverage
+  - platform: homeassistant
+    name: "Forecast 4 precipitation"
+    id: forecast_4_precipitation
+    entity_id: sensor.weather_in_4_days
+    attribute: precipitation
+
+
+##############################################################
+text_sensor:
+  - platform: homeassistant
+    name: "Sunrise"
+    id: sunrise
+    entity_id: sensor.sunrise_local
+    internal: true
+  - platform: homeassistant
+    name: "Sunset"
+    id: sunset
+    entity_id: sensor.sunset_local
+    internal: true
+  - platform: homeassistant
+    name: "Mondphase"
+    id: moonphase
+    entity_id: sensor.moonphase_local
+    internal: true
+  - platform: homeassistant
+    name: "Mondphase (Deutsch)"
+    id: moonphase_local_de
+    entity_id: sensor.moonphase_local_de
+    internal: true
+  - platform: homeassistant
+    name: "Weather today"
+    id: forecast_0_condition
+    entity_id: sensor.weather_today
+    attribute: condition
+  - platform: homeassistant
+    name: "Weather tomorrow"
+    id: forecast_1_condition
+    entity_id: sensor.weather_tomorrow
+    attribute: condition
+  - platform: homeassistant
+    name: "Weather in 2 days"
+    id: forecast_2_condition
+    entity_id: sensor.weather_in_2_days
+    attribute: condition
+  - platform: homeassistant
+    name: "Weather in 3 days"
+    id: forecast_3_condition
+    entity_id: sensor.weather_in_3_days
+    attribute: condition
+  - platform: homeassistant
+    name: "Weather in 4 days"
+    id: forecast_4_condition
+    entity_id: sensor.weather_in_4_days
+    attribute: condition
+  - platform: homeassistant
+    name: "Weekday tomorrow"
+    id: weekday_forecast_1
+    entity_id: sensor.forecast_weekdays
+    attribute: forecast_1
+    internal: true
+  - platform: homeassistant
+    name: "Weekday in 2 days"
+    id: weekday_forecast_2
+    entity_id: sensor.forecast_weekdays
+    attribute: forecast_2
+    internal: true
+  - platform: homeassistant
+    name: "Weekday in 3 days"
+    id: weekday_forecast_3
+    entity_id: sensor.forecast_weekdays
+    attribute: forecast_3
+    internal: true
+  - platform: homeassistant
+    name: "Weekday in 4 days"
+    id: weekday_forecast_4
+    entity_id: sensor.forecast_weekdays
+    attribute: forecast_4
+    internal: true
+  - platform: homeassistant
+    name: "aktuelles Datum"
+    id: date_header
+    entity_id: sensor.date_header
+    internal: true
+
+
+#ePaper display 7.5in v2 800x480 ##############################
+display:
+  - platform: waveshare_epaper
+    id: epaper_display
+    cs_pin: $gpio_cs_pin
+    dc_pin: $gpio_dc_pin
+    reset_pin: $gpio_reset_pin
+    busy_pin:
+      number: $gpio_busy_pin
+      inverted: true 
+    model: 7.50inv2  #800x480
+    rotation: 0°
+    update_interval: 120s  #so that it only updates one time after ESP32 wakes up from deep sleep. Change to never when deep sleep is activated.
+    auto_clear_enabled: True
+    reset_duration: 200ms
+    lambda: |-
+     // icon constants
+      #define ICON_sunrise                        "\U000F059C"
+      #define ICON_sunset                         "\U000F059B"
+      #define ICON_air                            "\U000F0D43"
+      #define ICON_temp_outdoor                   "\U000F050F"
+      #define ICON_temp_indoor                    "\U000F0F55"
+      #define ICON_humidity                       "\U000F058E"
+      #define ICON_rainrate                       "\U000F0597"
+      #define ICON_dewpoint                       "\U000F1A85"
+      #define ICON_windspeed                      "\U000F059D"
+      #define ICON_windgusts                      "\U000F1B5A"
+      #define ICON_UVindex                        "\U000F17FE"
+      #define ICON_solar_power                    "\U000F1A74"
+      #define ICON_house_power_consumption        "\U000F1904"
+      #define ICON_grid_withdrawing               "\U000F192C"
+      #define ICON_airpressure                    "\U000F029A"
+      #define ICON_co2                            "\U000F07E4"
+      #define ICON_cloud_percent                  "\U000F1A35" 
+      #define ICON_dragvertical                   "\U000F12F1"
+      #define ICON_rocket                         "\U000F14DF"
+      #define ICON_molecule                       "\U000F0BAC"
+      #define ICON_air_pollution                  "\U000F00B5"
+      #define ICON_airquality_excellent           "\U000F01F5"
+      #define ICON_airquality_neutral             "\U000F01F6"
+      #define ICON_airquality_bad                 "\U000F0C76"
+      #define ICON_airquality_unhealthy           "\U000F0C6E" 
+      #define ICON_rakete                         "\U000F14DF"
+      #define ICON_shield_home                    "\U000F0CCB"
+      #define ICON_battery_high                   "\U000F12A3"
+      #define ICON_battery_charging_high          "\U000F12A6"
+      #define ICON_battery_medium                 "\U000F12A2"
+      #define ICON_battery_charging_medium        "\U000F12A5"
+      #define ICON_battery_low                    "\U000F12A1"
+      #define ICON_battery_charging_low           "\U000F12A4"
+      #define ICON_battery_alert_variant_outline  "\U000F10CD"
+      #define ICON_battery_charging_outline       "\U000F089F"
+      #define ICON_battery_unknown                "\U000F0091"
+
+      // positioning constants
+      #define xRes 800
+      #define yRes 480
+
+      //Draw a line from [x=0,y=0] to [x=50,y=50]
+      it.line(0, 175, 436, 175); //horizontal line for weather prediction
+      it.line(100, 175, 100, 330); //vertical line weather 1
+      it.line(208, 175, 208, 330); //vertical line weather 2
+      it.line(318, 175, 318, 330); //vertical line weather 3
+      it.line(0, 329, 800, 329); //horizontal line at the bottom 1
+      it.line(0, 330, 800, 330); //horizontal line at the bottom 2
+      it.line(436, 0, 436, 330); //vertical line 1
+      it.line(437, 0, 437, 330); //vertical line 2
+
+      //LEFT UPPER DISPLAY HALF/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      if (id(date_header).has_state()) {
+      it.printf(5, 1, id(font_bold), TextAlign::TOP_LEFT, "%s", id(date_header).state.c_str());
+      }
+      it.printf(3, 85, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_sunrise);
+      it.printf(93, 76, id(font_medium_small), TextAlign::BASELINE_RIGHT, "%s", id(sunrise).state.c_str());
+      it.printf(3, 122, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_sunset);
+      it.printf(93, 114, id(font_medium_small), TextAlign::BASELINE_RIGHT, "%s", id(sunset).state.c_str());
+      it.printf(3, 160, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_UVindex);
+      it.printf(52, 153, id(font_medium_small), TextAlign::BASELINE_LEFT, "%.0f", id(UV_index).state);
+      it.printf(70, 153, id(font_medium_small), TextAlign::BASELINE_LEFT, "UVI");
+      
+      // Show moon phase and description/////////////////////////////////////////////////////////////////////////////////////////////////////
+      // Moon icons
+      if (id(moonphase).has_state())
+      {
+        std::map<std::string, std::string> moon_icons 
+        {
+          {"new_moon",        "\U000F0F64"},  // Neumond
+          {"waxing_crescent", "\U000F0F67"},  // Zunehmender Sichelmond
+          {"first_quarter",   "\U000F0F61"},  // Zunehmender Halbmond
+          {"waxing_gibbous",  "\U000F0F68"},  // Zunehmender Mond
+          {"full_moon",       "\U000F0F62"},  // Vollmond
+          {"waning_gibbous",  "\U000F0F66"},  // Abnehmender Mond
+          {"last_quarter",    "\U000F0F63"},  // Abnehmender Halbmond
+          {"waning_crescent", "\U000F0F65"}   // Abnehmender Sichelmond
+        };
+          it.printf(380, 25, id(mdi_bigger), TextAlign::CENTER, moon_icons[id(moonphase).state.c_str()].c_str());
+      }
+      //Moon phase description with text paragraph
+      if (id(moonphase_local_de).has_state())
+      {
+        std::map<std::string, std::pair<std::string, std::string>> moon_labels = {
+          {"Neumond",                     {"", "Neumond"}},
+          {"Zunehmender Sichelmond",      {"Zunehmender", "Sichelmond"}},
+          {"Zunehmender Halbmond",        {"Zunehmender", "Halbmond"}},
+          {"Zunehmender Dreiviertelmond", {"Zunehmender", "Dreiviertelmond"}},
+          {"Vollmond",                    {"", "Vollmond"}},
+          {"Abnehmender Dreiviertelmond", {"Abnehmender", "Dreiviertelmond"}},
+          {"Abnehmender Halbmond",        {"Abnehmender", "Halbmond"}},
+          {"Abnehmender Sichelmond",      {"Abnehmender", "Sichelmond"}}
+      };
+      auto phase = std::string(id(moonphase_local_de).state.c_str());
+      if (moon_labels.count(phase)) {
+      auto lines = moon_labels[phase];
+        if (!lines.first.empty()) {
+          it.printf(410, 70, id(font_small), TextAlign::RIGHT, "%s", lines.first.c_str());
+          it.printf(410, 90, id(font_small), TextAlign::RIGHT, "%s", lines.second.c_str());
+         } else {
+          // einzeilige Anzeige bei kurzen Namen wie "Neumond" oder "Vollmond"
+          it.printf(410, 70, id(font_small), TextAlign::RIGHT, "%s", lines.second.c_str());
+         }
+        }
+       }
+      it.printf(285, 69, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_rakete);
+
+      // Show Weather forecasts//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      //Define used weather icons
+        std::map<std::string, const char*> weather_icons
+        {
+          {"sunny", "\U000F0599"},
+          {"partlycloudy", "\U000F0595"},
+          {"cloudy", "\U000F0590"},
+          {"rainy", "\U000F0597"},
+          {"pouring", "\U000F0596"},
+          {"snowy", "\U000F0598"},
+          {"fog", "\U000F0591"},
+          {"lightning", "\U000F0593"},
+          {"lightning-rainy", "\U000F067E"},
+          {"snowy-rainy", "\U000F067F"},
+      };
+
+      //Weather today/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      if (id(forecast_0_condition).has_state()) 
+      {
+        std::string cond = id(forecast_0_condition).state.c_str();
+        if (weather_icons.count(cond)) {
+        it.printf(160, 96, id(mdi_biggest), TextAlign::BASELINE_LEFT, weather_icons[cond]);
+        } 
+        else {
+        it.printf(160, 96, id(font_small), TextAlign::BASELINE_LEFT, "Icon");
+        }
+      it.printf(130, 135, id(font_bold), TextAlign::BASELINE_LEFT, "%.0f°C", id(forecast_0_tempmin).state);
+      it.printf(186, 135, id(font_bold), TextAlign::BASELINE_LEFT, "bis");
+      it.printf(230, 135, id(font_bold), TextAlign::BASELINE_LEFT, "%.0f°C", id(forecast_0_tempmax).state);
+      it.printf(130, 163, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_windspeed);
+      it.printf(178, 161, id(font_medium_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_0_wind_speed).state);
+      it.printf(182, 161, id(font_medium_small), TextAlign::BASELINE_LEFT, "km/h");
+      it.printf(232, 161, id(font_medium_small), TextAlign::BASELINE_LEFT, "||");
+      it.printf(246, 162, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_cloud_percent);
+      it.printf(294, 161, id(font_medium_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_0_cloud_coverage).state);
+      it.printf(297, 161, id(font_medium_small), TextAlign::BASELINE_LEFT, "%%");
+      it.printf(313, 161, id(font_medium_small), TextAlign::BASELINE_LEFT, "||");
+      it.printf(328, 164, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(375, 161, id(font_medium_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_0_precipitation).state);
+      it.printf(380, 161, id(font_medium_small), TextAlign::BASELINE_LEFT, "mm");
+      }
+
+      //Weather prediction tomorrow (1 day)/////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(49, 194, id(font_small_fat), TextAlign::BASELINE_CENTER, "%s", id(weekday_forecast_1).state.c_str());
+      if (id(forecast_1_condition).has_state()) 
+        {
+        std::string cond = id(forecast_1_condition).state.c_str();
+        if (weather_icons.count(cond)) {
+        it.printf(26, 242, id(mdi_big), TextAlign::BASELINE_LEFT, weather_icons[cond]);
+        } 
+        else {
+        it.printf(26, 242, id(font_small), TextAlign::BASELINE_LEFT, "Icon");
+        }
+      it.printf(2, 275, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_temp_outdoor);
+      it.printf(46, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_1_tempmin).state);
+      it.printf(44, 272, id(font_small), TextAlign::BASELINE_RIGHT, "-");
+      it.printf(93, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_1_tempmax).state);
+      it.printf(2, 298, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_cloud_percent);     
+      it.printf(60, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_1_cloud_coverage).state);
+      it.printf(74, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%%");
+      it.printf(2, 322, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(59, 320, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_1_precipitation).state);
+      it.printf(93, 320, id(font_small), TextAlign::BASELINE_RIGHT, "mm");
+      }
+
+      //Weather prediction 2 days////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(159, 194, id(font_small_fat), TextAlign::BASELINE_CENTER, "%s", id(weekday_forecast_2).state.c_str());
+      if (id(forecast_2_condition).has_state()) 
+        {
+        std::string cond = id(forecast_2_condition).state.c_str();
+        if (weather_icons.count(cond)) {
+        it.printf(130, 242, id(mdi_big), TextAlign::BASELINE_LEFT, weather_icons[cond]);
+        } 
+        else {
+        it.printf(130, 242, id(font_small), TextAlign::BASELINE_LEFT, "Icon");
+        }
+      it.printf(104, 275, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_temp_outdoor);
+      it.printf(158, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_2_tempmin).state);
+      it.printf(165, 272, id(font_small), TextAlign::BASELINE_RIGHT, "-");
+      it.printf(204, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_2_tempmax).state);
+      it.printf(104, 298, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_cloud_percent);      
+      it.printf(167, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_2_cloud_coverage).state);
+      it.printf(181, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%%");
+      it.printf(104, 322, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(166, 320, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_2_precipitation).state);
+      it.printf(200, 320, id(font_small), TextAlign::BASELINE_RIGHT, "mm");
+      }
+
+      //Weather prediction 3 days////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(267, 194, id(font_small_fat), TextAlign::BASELINE_CENTER, "%s", id(weekday_forecast_3).state.c_str());
+      if (id(forecast_3_condition).has_state()) 
+      {
+        std::string cond = id(forecast_3_condition).state.c_str();
+        if (weather_icons.count(cond)) {
+        it.printf(237, 242, id(mdi_big), TextAlign::BASELINE_LEFT, weather_icons[cond]);
+        } 
+        else {
+        it.printf(237, 242, id(font_small), TextAlign::BASELINE_LEFT, "Icon");
+        }
+      it.printf(211, 275, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_temp_outdoor);
+      it.printf(267, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_3_tempmin).state);
+      it.printf(275, 272, id(font_small), TextAlign::BASELINE_RIGHT, "-");
+      it.printf(315, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_3_tempmax).state);
+      it.printf(211, 298, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_cloud_percent);
+      it.printf(275, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_3_cloud_coverage).state);
+      it.printf(289, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%%");
+      it.printf(211, 322, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(274, 320, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_3_precipitation).state);
+      it.printf(308, 320, id(font_small), TextAlign::BASELINE_RIGHT, "mm");
+      }
+
+      //Weather prediction 4 days/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(375, 194, id(font_small_fat), TextAlign::BASELINE_CENTER, "%s", id(weekday_forecast_4).state.c_str());
+      if (id(forecast_4_condition).has_state()) 
+      {
+        std::string cond = id(forecast_4_condition).state.c_str();
+        if (weather_icons.count(cond)) {
+        it.printf(349, 242, id(mdi_big), TextAlign::BASELINE_LEFT, weather_icons[cond]);
+        } 
+        else {
+        it.printf(349, 242, id(font_small), TextAlign::BASELINE_LEFT, "Icon");
+        }
+      it.printf(322, 275, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_temp_outdoor);
+      it.printf(384, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_4_tempmin).state);
+      it.printf(393, 272, id(font_small), TextAlign::BASELINE_RIGHT, "-");
+      it.printf(433, 272, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f°C", id(forecast_4_tempmax).state);
+      it.printf(322, 298, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_cloud_percent);     
+      it.printf(384, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_4_cloud_coverage).state);
+      it.printf(398, 295, id(font_small), TextAlign::BASELINE_RIGHT, "%%");
+      it.printf(322, 322, id(mdi_weather_small), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(383, 320, id(font_small), TextAlign::BASELINE_RIGHT, "%.0f", id(forecast_4_precipitation).state);
+      it.printf(417, 320, id(font_small), TextAlign::BASELINE_RIGHT, "mm");
+      }
+
+
+      //Wetterstation///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(10, 356, id(font_bold), TextAlign::BASELINE_LEFT, "Wetterstation");
+
+      it.printf(5, 395, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_temp_outdoor);
+      it.printf(100, 390, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(temp_outdoor).state);
+      it.printf(103, 393, id(font_medium), TextAlign::BASELINE_LEFT, "°C");
+
+      it.printf(212, 392, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_dewpoint);
+      it.printf(310, 388, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(dew_point).state);
+      it.printf(313, 388, id(font_medium), TextAlign::BASELINE_LEFT, "°C");
+
+
+      it.printf(5, 435, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_humidity);
+      it.printf(105, 428, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(humidity_outdoor).state);
+      it.printf(107, 428, id(font_medium), TextAlign::BASELINE_LEFT, "%%");
+
+      it.printf(212, 435, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_rainrate);
+      it.printf(310, 427, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(rain_rate).state);
+      it.printf(315, 427, id(font_medium), TextAlign::BASELINE_LEFT, "mm/h");
+
+      it.printf(8, 475, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_windspeed);
+      it.printf(105, 471, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(wind_speed).state);
+      it.printf(109, 471, id(font_medium), TextAlign::BASELINE_LEFT, "km/h");
+
+      it.printf(209, 475, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_windgusts);
+      it.printf(310, 470, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(wind_gusts).state);
+      it.printf(315, 470, id(font_medium), TextAlign::BASELINE_LEFT, "km/h");
+
+
+
+      // RIGHT DISPLAY HALF //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      // Basis Offset
+      const int X0 = 432, Y0 = 2;
+
+      // Verbindungs Linie horizontal
+      it.line(X0 + 86, Y0 + 209, X0 + 293, Y0 + 209);
+      it.line(X0 + 86, Y0 + 210, X0 + 293, Y0 + 210);
+      it.line(X0 + 86, Y0 + 211, X0 + 293, Y0 + 211);
+      // Verbindungs Linie vertikal
+      it.line(X0 + 189, Y0 + 182, X0 + 189, Y0 + 236);
+      it.line(X0 + 190, Y0 + 182, X0 + 190, Y0 + 236);
+      it.line(X0 + 191, Y0 + 182, X0 + 191, Y0 + 236);
+      
+      it.printf(X0 + 10, Y0 + 27, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_shield_home);
+      it.printf(X0 + 47, Y0 + 24, id(font_bold), TextAlign::BASELINE_LEFT, "Wohnung");
+
+      //Indoor sensors ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(X0 + 10, Y0 + 70, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_temp_indoor);
+      it.printf(X0 + 107, Y0 + 64, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(temp_indoor).state);
+      it.printf(X0 + 107, Y0 + 64, id(font_medium), TextAlign::BASELINE_LEFT, "°C");
+      it.printf(X0 + 162, Y0 + 70, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_humidity);
+      it.printf(X0 + 257, Y0 + 64, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(humidity_indoor).state);
+      it.printf(X0 + 262, Y0 + 64, id(font_medium_small), TextAlign::BASELINE_LEFT, "%%");
+
+      //Balkonkraftwerk////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      //Solar
+      it.regular_polygon(X0 + 190, Y0 + 137, 41, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 137, 42, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 137, 43, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 137, 44, EDGES_HEXAGON);
+      it.printf(X0 + 174, Y0 + 134, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_solar_power);
+      it.printf(X0 + 193, Y0 + 155, id(font_small), TextAlign::BASELINE_RIGHT, "%.1f", id(solarpower_input).state);
+      it.printf(X0 + 204, Y0 + 155, id(font_small), TextAlign::BASELINE_LEFT, "W");
+
+      //Grid
+      it.regular_polygon(X0 + 50, Y0 + 206, 41, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 50, Y0 + 206, 42, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 50, Y0 + 206, 43, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 50, Y0 + 206, 44, EDGES_HEXAGON);
+      it.printf(X0 + 38, Y0 + 202, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_grid_withdrawing);
+      it.printf(X0 + 50, Y0 + 222, id(font_small), TextAlign::BASELINE_RIGHT, "%.1f", id(total_grid_withdraw).state);
+      it.printf(X0 + 60, Y0 + 222, id(font_small), TextAlign::BASELINE_LEFT, "W");
+
+      //Home
+      it.regular_polygon(X0 + 330, Y0 + 206, 41, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 330, Y0 + 206, 42, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 330, Y0 + 206, 43, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 330, Y0 + 206, 44, EDGES_HEXAGON);
+      it.printf(X0 + 315, Y0 + 201, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_house_power_consumption);
+      it.printf(X0 + 332, Y0 + 221, id(font_small), TextAlign::BASELINE_RIGHT, "%.1f", id(grid_power_input).state);
+      it.printf(X0 + 335, Y0 + 221, id(font_small), TextAlign::BASELINE_LEFT, "W");
+
+      //Battery
+      it.regular_polygon(X0 + 190, Y0 + 277, 41, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 277, 42, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 277, 43, EDGES_HEXAGON);
+      it.regular_polygon(X0 + 190, Y0 + 277, 44, EDGES_HEXAGON);
+      it.printf(X0 + 195, Y0 + 286, id(font_small), TextAlign::BASELINE_RIGHT, "%.1f", id(battery_soc).state);
+      it.printf(X0 + 204, Y0 + 286, id(font_small), TextAlign::BASELINE_LEFT, "%%");
+      it.printf(X0 + 195, Y0 + 300, id(font_small), TextAlign::BASELINE_RIGHT, "%.1f", id(battery_power).state);
+      it.printf(X0 + 204, Y0 + 300, id(font_small), TextAlign::BASELINE_LEFT, "W");
+
+      //Show battery level in dependence of stat of charge
+      if (id(battery_soc).has_state() && id(battery_power).has_state()) {
+        float soc = id(battery_soc).state;
+        float power = id(battery_power).state;
+
+        if (power > 0) {
+          // Battery charging
+          if (soc <= 5.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_charging_outline);
+          } else if (soc <= 30.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_charging_low);
+          } else if (soc <= 65.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_charging_medium);
+          } else {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_charging_high);
+          }
+        } 
+        else if (power < 0) {
+          // Battery discharging
+          if (soc <= 5.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_alert_variant_outline);
+          } else if (soc <= 30.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_low);
+          } else if (soc <= 65.0f) {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_medium);
+          } else {
+            it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_high);
+          }
+        }
+        else {
+          // Battery neither charging nor discharging (evtl. 0W oder Messfehler) → unknown
+          it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_unknown);
+        }
+      } 
+      else {
+        // No valid SOC or power data → unknown
+        it.printf(X0 + 173, Y0 + 271, id(mdi_small), TextAlign::BASELINE_LEFT, ICON_battery_unknown);
+      }
+
+
+      //Particulate matter pollution /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      it.printf(437, 367, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_air_pollution);
+      it.printf(475, 363, id(font_medium), TextAlign::BASELINE_LEFT, "Luftverschmutzung"); 
+
+      //Show emoji in dependence of measured PM 2.5 value
+      if (id(PM_25).has_state()) {
+        float pm25_value = id(PM_25).state;
+
+        if (pm25_value <= 10.0f) {
+          it.printf(750, 370, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_airquality_excellent);
+        } 
+        else if (pm25_value <= 25.0f) {
+          it.printf(750, 370, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_airquality_neutral);
+        } 
+        else if (pm25_value <= 50.0f) {
+          it.printf(750, 370, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_airquality_bad);
+         } 
+         else {
+           it.printf(750, 370, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_airquality_unhealthy);
+         }
+      }
+      
+      it.printf(440, 380, id(font_medium_PM), "PM");
+      it.printf(475, 405, id(font_mini), TextAlign::BASELINE_LEFT, "0.3");
+      it.printf(565, 400, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(PM_03).state);
+      it.printf(567, 400, id(font_small), TextAlign::BASELINE_LEFT, "µg/m³");
+      it.printf(440, 415, id(font_medium_PM), "PM");
+      it.printf(475, 441, id(font_mini), TextAlign::BASELINE_LEFT, "1.0");
+      it.printf(565, 433, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(PM_01).state);
+      it.printf(567, 433, id(font_small), TextAlign::BASELINE_LEFT, "µg/m³");
+      it.printf(440, 453, id(font_medium_PM), "PM");
+      it.printf(475, 480, id(font_mini), TextAlign::BASELINE_LEFT, "2.5");
+      it.printf(565, 471, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(PM_25).state);
+      it.printf(567, 471, id(font_small), TextAlign::BASELINE_LEFT, "µg/m³");
+      
+      it.printf(645, 380, id(font_medium_PM), "PM");
+      it.printf(676, 405, id(font_mini), TextAlign::BASELINE_LEFT, "10");
+      it.printf(750, 400, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(PM_10).state);
+      it.printf(750, 400, id(font_small), TextAlign::BASELINE_LEFT, "µg/m³");
+      it.printf(645, 415, id(font_medium_PM), "CO");
+      it.printf(674, 442, id(font_mini), TextAlign::BASELINE_LEFT, "2");
+      it.printf(750, 435, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(CO2_outdoor).state);
+      it.printf(750, 435, id(font_small), TextAlign::BASELINE_LEFT, "ppm");
+      it.printf(645, 450, id(font_medium_PM), "NO");
+      it.printf(674, 475, id(font_mini), TextAlign::BASELINE_LEFT, "x");
+      it.printf(750, 471, id(font_medium_PM), TextAlign::BASELINE_RIGHT, "%.1f", id(NOx_outdoor).state);
+
+
+      //it.printf(X0 + 205, Y0 + 40, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_airpressure);
+      //it.printf(X0 + 313, Y0 + 32, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(pressure).state);
+      //it.printf(X0 + 323, Y0 + 32, id(font_medium_small), TextAlign::BASELINE_LEFT, "hPa");
+
+      //it.printf(X0 + 205, Y0 + 108, id(mdi_medium), TextAlign::BASELINE_LEFT, ICON_co2);
+      //it.printf(X0 + 313, Y0 + 103, id(font_medium), TextAlign::BASELINE_RIGHT, "%.1f", id(CO2_indoor).state);
+      //it.printf(X0 + 323, Y0 + 103, id(font_medium_small), TextAlign::BASELINE_LEFT, "ppm");
